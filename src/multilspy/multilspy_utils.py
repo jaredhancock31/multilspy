@@ -99,7 +99,7 @@ class FileUtils:
         """
         Reads the file at the given path and returns the contents as a string.
         """
-        encodings = ["utf-8-sig", "utf-16"]
+        encodings = ["utf-8-sig", "utf-16", "iso-8859-1"]
         try:
             for encoding in encodings:
                 try:
