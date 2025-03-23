@@ -7,13 +7,14 @@ import logging
 import os
 import pathlib
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import AsyncIterator, List
 
 from multilspy.multilspy_logger import MultilspyLogger
 from multilspy.language_server import LanguageServer
 from multilspy.lsp_protocol_handler.server import ProcessLaunchInfo
 from multilspy.lsp_protocol_handler.lsp_types import InitializeParams
 from multilspy.multilspy_config import MultilspyConfig
+from multilspy import multilspy_types
 
 
 class JediServer(LanguageServer):
@@ -33,6 +34,24 @@ class JediServer(LanguageServer):
             "python",
         )
 
+    async def request_definition(
+        self, relative_file_path: str, line: int, column: int
+    ) -> List[multilspy_types.Location]:
+        """
+        Requests the definition of a symbol at the specified line and column in the given file.
+        """
+        print("============David Request Definition =====")
+        return await super().request_definition(relative_file_path, line, column)
+
+    
+    async def request_references(
+        self, relative_file_path: str, line: int, column: int
+    ) -> List[multilspy_types.Location]:
+        """
+        Requests the references of a symbol at the specified line and column in the given file.
+        """
+        print("============David Request Reference =====")
+        return await super().request_references(relative_file_path, line, column)
     def _get_initialize_params(self, repository_absolute_path: str) -> InitializeParams:
         """
         Returns the initialize params for the Jedi Language Server.
