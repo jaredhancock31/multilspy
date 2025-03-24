@@ -27,11 +27,12 @@ class JediServer(LanguageServer):
         """
         Creates a JediServer instance. This class is not meant to be instantiated directly. Use LanguageServer.create() instead.
         """
+        # Initialize with a dummy ProcessLaunchInfo since we won't actually launch a server process
         super().__init__(
             config,
             logger,
             repository_root_path,
-            ProcessLaunchInfo(cmd="jedi-language-server", cwd=repository_root_path),
+            ProcessLaunchInfo(cmd="echo 'Direct Jedi API mode - no server needed'", cwd=repository_root_path),
             "python",
         )
         
@@ -578,9 +579,189 @@ class JediServer(LanguageServer):
             except Exception as e:
                 self.logger.log(f"Error in LSP fallback: {str(e)}", logging.ERROR)
                 return []
+    async def request_completions(
+        self, relative_file_path: str, line: int, column: int, allow_incomplete: bool = False
+    ) -> List[multilspy_types.CompletionItem]:
+        """
+        Requests completions at the specified line and column in the given file using direct Jedi API.
+        
+        :param relative_file_path: The relative path of the file
+        :param line: The line number (0-based)
+        :param column: The column number
+        :param allow_incomplete: Whether to allow incomplete completions
+        :return: A list of completion items
+        """
+        try:
+            absolute_file_path = os.path.join(self.repository_root_path, relative_file_path)
+            self.logger.log(f"Finding completions in {absolute_file_path} at line {line}, column {column}", logging.INFO)
+            
+            # Check if file exists
+            if not os.path.exists(absolute_file_path):
+                self.logger.log(f"File does not exist: {absolute_file_path}", logging.ERROR)
+                return []
+            
+            # Read file content
+            try:
+                with open(absolute_file_path, 'r', encoding='utf-8') as f:
+                    file_content = f.read()
+                self.logger.log(f"Successfully read file content, length: {len(file_content)}", logging.INFO)
+            except Exception as e:
+                self.logger.log(f"Error reading file: {str(e)}", logging.ERROR)
+                return []
+            
+            # Create a Script object
+            try:
+                script = self.jedi.Script(
+                    code=file_content,
+                    path=absolute_file_path,
+                    project=self.project
+                )
+                self.logger.log("Successfully created Jedi Script object", logging.INFO)
+            except Exception as e:
+                self.logger.log(f"Error creating Jedi Script: {str(e)}", logging.ERROR)
+                return []
+            
+            # Get completions
+            try:
+                completions = script.complete(
+                    line=line + 1,  # Jedi uses 1-based line numbers
+                    column=column
+                )
+                self.logger.log(f"Found {len(completions)} completions", logging.INFO)
+            except Exception as e:
+                self.logger.log(f"Error getting completions: {str(e)}", logging.ERROR)
+                return []
+            
+            # Map Jedi completion types to LSP completion item kinds
+            JEDI_TYPE_TO_COMPLETION_KIND = {
+                "module": multilspy_types.CompletionItemKind.Module,
+                "class": multilspy_types.CompletionItemKind.Class,
+                "function": multilspy_types.CompletionItemKind.Function,
+                "instance": multilspy_types.CompletionItemKind.Variable,
+                "statement": multilspy_types.CompletionItemKind.Variable,
+                "param": multilspy_types.CompletionItemKind.Variable,
+                "import": multilspy_types.CompletionItemKind.Module,
+                "property": multilspy_types.CompletionItemKind.Property,
+                "method": multilspy_types.CompletionItemKind.Method,
+                "keyword": multilspy_types.CompletionItemKind.Keyword,
+            }
+            
+            # Convert Jedi completions to CompletionItem objects
+            completion_items = []
+            for completion in completions:
+                try:
+                    # Get the completion kind
+                    completion_kind = JEDI_TYPE_TO_COMPLETION_KIND.get(
+                        completion.type, multilspy_types.CompletionItemKind.Text
+                    )
+                    
+                    # Create the completion item
+                    item = {
+                        "completionText": completion.name,
+                        "kind": completion_kind
+                    }
+                    
+                    # Add detail if available
+                    if hasattr(completion, "description") and completion.description:
+                        item["detail"] = completion.description
+                    
+                    # Add to the list of completion items
+                    completion_items.append(multilspy_types.CompletionItem(**item))
+                    self.logger.log(f"Added completion: {completion.name}, type: {completion.type}, kind: {completion_kind}", logging.INFO)
+                except Exception as e:
+                    self.logger.log(f"Error processing completion {completion.name}: {str(e)}", logging.ERROR)
+            
+            self.logger.log(f"Successfully converted {len(completion_items)} completions", logging.INFO)
+            
+            return completion_items
+            
+        except Exception as e:
+            import traceback
+            self.logger.log(f"Error in direct Jedi approach for completions: {str(e)}", logging.ERROR)
+            self.logger.log(f"Traceback: {traceback.format_exc()}", logging.ERROR)
+            return []
+    
+    async def request_hover(self, relative_file_path: str, line: int, column: int) -> Union[multilspy_types.Hover, None]:
+        """
+        Requests hover information at the specified line and column in the given file using direct Jedi API.
+        
+        :param relative_file_path: The relative path of the file
+        :param line: The line number (0-based)
+        :param column: The column number
+        :return: Hover information or None if not available
+        """
+        try:
+            absolute_file_path = os.path.join(self.repository_root_path, relative_file_path)
+            self.logger.log(f"Finding hover info in {absolute_file_path} at line {line}, column {column}", logging.INFO)
+            
+            # Check if file exists
+            if not os.path.exists(absolute_file_path):
+                self.logger.log(f"File does not exist: {absolute_file_path}", logging.ERROR)
+                return None
+            
+            # Read file content
+            try:
+                with open(absolute_file_path, 'r', encoding='utf-8') as f:
+                    file_content = f.read()
+                self.logger.log(f"Successfully read file content, length: {len(file_content)}", logging.INFO)
+            except Exception as e:
+                self.logger.log(f"Error reading file: {str(e)}", logging.ERROR)
+                return None
+            
+            # Create a Script object
+            try:
+                script = self.jedi.Script(
+                    code=file_content,
+                    path=absolute_file_path,
+                    project=self.project
+                )
+                self.logger.log("Successfully created Jedi Script object", logging.INFO)
+            except Exception as e:
+                self.logger.log(f"Error creating Jedi Script: {str(e)}", logging.ERROR)
+                return None
+            
+            # Try to get help on the symbol
+            try:
+                helps = script.help(
+                    line=line + 1,  # Jedi uses 1-based line numbers
+                    column=column
+                )
+                
+                if helps:
+                    help_text = helps[0].docstring()
+                    if not help_text:
+                        # Try to get a description if docstring is empty
+                        help_text = helps[0].description
+                    
+                    self.logger.log(f"Found hover info: {help_text[:100]}...", logging.INFO)
+                    
+                    # Create the hover information
+                    hover = {
+                        "contents": {
+                            "kind": "markdown",
+                            "value": f"```python\n{help_text}\n```"
+                        }
+                    }
+                    
+                    return multilspy_types.Hover(**hover)
+                else:
+                    self.logger.log("No hover info found", logging.INFO)
+                    return None
+                
+            except Exception as e:
+                self.logger.log(f"Error getting hover info: {str(e)}", logging.ERROR)
+                return None
+            
+        except Exception as e:
+            import traceback
+            self.logger.log(f"Error in direct Jedi approach for hover: {str(e)}", logging.ERROR)
+            self.logger.log(f"Traceback: {traceback.format_exc()}", logging.ERROR)
+            return None
+    
     def _get_initialize_params(self, repository_absolute_path: str) -> InitializeParams:
         """
         Returns the initialize params for the Jedi Language Server.
+        This is kept for compatibility but not actually used in direct Jedi API mode.
         """
         with open(os.path.join(os.path.dirname(__file__), "initialize_params.json"), "r") as f:
             d = json.load(f)
@@ -605,7 +786,8 @@ class JediServer(LanguageServer):
     @asynccontextmanager
     async def start_server(self) -> AsyncIterator["JediServer"]:
         """
-        Starts the JEDI Language Server, waits for the server to be ready and yields the LanguageServer instance.
+        Mock implementation that doesn't actually start a server process.
+        Instead, it just sets up the necessary state for direct Jedi API usage.
 
         Usage:
         ```
@@ -617,49 +799,16 @@ class JediServer(LanguageServer):
         # LanguageServer has been shutdown
         ```
         """
-
-        async def execute_client_command_handler(params):
-            return []
-
-        async def do_nothing(params):
-            return
-
-        async def check_experimental_status(params):
-            if params["quiescent"] == True:
-                self.completions_available.set()
-
-        async def window_log_message(msg):
-            self.logger.log(f"LSP: window/logMessage: {msg}", logging.INFO)
-
-        self.server.on_request("client/registerCapability", do_nothing)
-        self.server.on_notification("language/status", do_nothing)
-        self.server.on_notification("window/logMessage", window_log_message)
-        self.server.on_request("workspace/executeClientCommand", execute_client_command_handler)
-        self.server.on_notification("$/progress", do_nothing)
-        self.server.on_notification("textDocument/publishDiagnostics", do_nothing)
-        self.server.on_notification("language/actionableNotification", do_nothing)
-        self.server.on_notification("experimental/serverStatus", check_experimental_status)
-
-        async with super().start_server():
-            self.logger.log("Starting jedi-language-server server process", logging.INFO)
-            await self.server.start()
-            initialize_params = self._get_initialize_params(self.repository_root_path)
-
-            self.logger.log(
-                "Sending initialize request from LSP client to LSP server and awaiting response",
-                logging.INFO,
-            )
-            init_response = await self.server.send.initialize(initialize_params)
-            assert init_response["capabilities"]["textDocumentSync"]["change"] == 2
-            assert "completionProvider" in init_response["capabilities"]
-            assert init_response["capabilities"]["completionProvider"] == {
-                "triggerCharacters": [".", "'", '"'],
-                "resolveProvider": True,
-            }
-
-            self.server.notify.initialized({})
-
+        # Set server_started flag to true to allow operations
+        self.server_started = True
+        
+        # Set completions_available event to allow completions to work
+        self.completions_available.set()
+        
+        self.logger.log("Using direct Jedi API mode (no server process needed)", logging.INFO)
+        
+        try:
             yield self
-
-            await self.server.shutdown()
-            await self.server.stop()
+        finally:
+            # Reset state on exit
+            self.server_started = False
