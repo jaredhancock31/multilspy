@@ -224,23 +224,14 @@ class JediServer(LanguageServer):
                 return symbols, tree_repr
             
             # Fall back to the original implementation if no symbols were found
-            self.logger.log("No symbols found with direct Jedi approach, falling back to LSP", logging.INFO)
-            try:
-                return await super().request_document_symbols(relative_file_path)
-            except Exception as e:
-                self.logger.log(f"Error in LSP fallback: {str(e)}", logging.ERROR)
-                return [], None
-            
+            self.logger.log(f"request_document_symbols: No symbols found with direct Jedi approach {relative_file_path}", logging.INFO)
+
+            return [], None
         except Exception as e:
             import traceback
-            self.logger.log(f"Error in direct Jedi approach: {str(e)}", logging.ERROR)
+            self.logger.log(f"Error in direct Jedi approach: {relative_file_path}:{str(e)} ", logging.ERROR)
             self.logger.log(f"Traceback: {traceback.format_exc()}", logging.ERROR)
-            # Fall back to the original implementation
-            try:
-                return await super().request_document_symbols(relative_file_path)
-            except Exception as e:
-                self.logger.log(f"Error in LSP fallback: {str(e)}", logging.ERROR)
-                return [], None
+            return [], None
     async def request_definition(
         self, relative_file_path: str, line: int, column: int
     ) -> List[multilspy_types.Location]:
@@ -406,24 +397,14 @@ class JediServer(LanguageServer):
             if locations:
                 return locations
             
-            # Fall back to the original implementation if no definitions were found
-            self.logger.log("No definitions found with direct Jedi approach, falling back to LSP", logging.INFO)
-            try:
-                return await super().request_definition(relative_file_path, line, column)
-            except Exception as e:
-                self.logger.log(f"Error in LSP fallback: {str(e)}", logging.ERROR)
-                return []
+            self.logger.log(f"No definitions found with direct Jedi approach - {relative_file_path}:{line}:{column}", logging.INFO)
+            return []
             
         except Exception as e:
             import traceback
             self.logger.log(f"Error in direct Jedi approach: {str(e)}", logging.ERROR)
             self.logger.log(f"Traceback: {traceback.format_exc()}", logging.ERROR)
-            # Fall back to the original implementation
-            try:
-                return await super().request_definition(relative_file_path, line, column)
-            except Exception as e:
-                self.logger.log(f"Error in LSP fallback: {str(e)}", logging.ERROR)
-                return []
+            return []
 
     
     async def request_references(
@@ -561,24 +542,14 @@ class JediServer(LanguageServer):
             if locations:
                 return locations
             
-            # Fall back to the original implementation if no references were found
-            self.logger.log("No references found with direct Jedi approach, falling back to LSP", logging.INFO)
-            try:
-                return await super().request_references(relative_file_path, line, column)
-            except Exception as e:
-                self.logger.log(f"Error in LSP fallback: {str(e)}", logging.ERROR)
-                return []
+            self.logger.log(f"No references found with direct Jedi approach - {relative_file_path}:{line}:{column}", logging.INFO)
+            return []
             
         except Exception as e:
             import traceback
             self.logger.log(f"Error in direct Jedi approach: {str(e)}", logging.ERROR)
             self.logger.log(f"Traceback: {traceback.format_exc()}", logging.ERROR)
-            # Fall back to the original implementation
-            try:
-                return await super().request_references(relative_file_path, line, column)
-            except Exception as e:
-                self.logger.log(f"Error in LSP fallback: {str(e)}", logging.ERROR)
-                return []
+            return []
     async def request_completions(
         self, relative_file_path: str, line: int, column: int, allow_incomplete: bool = False
     ) -> List[multilspy_types.CompletionItem]:
