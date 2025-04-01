@@ -20,6 +20,8 @@ class Language(str, Enum):
     RUBY = "ruby"
     DART = "dart"
     PERL = "perl"
+    C = "c"
+    CPP = "cpp"
 
     def __str__(self) -> str:
         return self.value

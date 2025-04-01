@@ -116,6 +116,10 @@ class LanguageServer:
             from multilspy.language_servers.perl_language_server.perl_language_server import PerlLanguageServer
 
             return PerlLanguageServer(config, logger, repository_root_path)
+        elif config.code_language in [Language.C, Language.CPP]:
+            from multilspy.language_servers.clangd.clangd import ClangdServer
+
+            return ClangdServer(config, logger, repository_root_path)
         else:
             logger.log(f"Language {config.code_language} is not supported", logging.ERROR)
             raise MultilspyException(f"Language {config.code_language} is not supported")
